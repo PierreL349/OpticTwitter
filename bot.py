@@ -18,15 +18,25 @@ MOONDREAM_API_KEYS = [
 # Cycle through the Moondream API keys
 moondream_keys_cycle = cycle(MOONDREAM_API_KEYS)
 
-def get_new_moondream_model():
+def get_valid_moondream_model():
     """
-    Rotate to the next Moondream API key and return a new model instance.
+    Rotate through the Moondream API keys and return a valid model instance.
+    Retries until a valid key is found.
     """
-    new_key = next(moondream_keys_cycle)
-    print(f"Using Moondream API key: {new_key}")
-    return md.vl(api_key=new_key)
+    while True:
+        new_key = next(moondream_keys_cycle)
+        print(f"Trying Moondream API key: {new_key}")
+        model = md.vl(api_key=new_key)
+        # Test the model to ensure the key is valid
+        try:
+            # A lightweight test query (adjust as needed)
+            model.query("test", "valid")
+            return model
+        except Exception as e:
+            print(f"Invalid Moondream API key: {new_key}. Error: {e}")
+            continue
 
-# Twitter API configuration (unchanged)
+# Twitter API configuration
 TWITTER_BEARER_TOKEN = os.getenv("TWITTER_BEARER_TOKEN")
 TWITTER_API_KEY = os.getenv("TWITTER_API_KEY")
 TWITTER_API_SECRET = os.getenv("TWITTER_API_SECRET")
@@ -42,7 +52,7 @@ client = tweepy.Client(
 )
 
 BOT_HANDLE = "optic_agent"
-BOT_USER_ID = "1871746331212992512"  # Replace with your bot's user ID
+BOT_USER_ID = "1871746331212992512"
 
 def download_image(url):
     response = requests.get(url)
@@ -85,8 +95,8 @@ def process_mention(mention, includes):
                     image = download_image(media_url)
                     if image:
                         query = mention["text"].replace(BOT_HANDLE, "").strip()
-                        # Rotate Moondream key for each request
-                        model = get_new_moondream_model()
+                        # Get a valid Moondream model
+                        model = get_valid_moondream_model()
                         try:
                             answer = model.query(image, query)["answer"]
                             print(f"Generated Answer: {answer}")
