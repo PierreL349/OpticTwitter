@@ -1,0 +1,5 @@
+tweepy
+moondream
+pillow
+python-dotenv
+requests

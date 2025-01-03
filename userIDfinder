@@ -1,0 +1,22 @@
+import tweepy
+from dotenv import load_dotenv
+import os
+
+# Load .env file
+load_dotenv()
+
+# Twitter API keys
+TWITTER_BEARER_TOKEN = os.getenv("TWITTER_BEARER_TOKEN")
+
+# Set up Tweepy Client for v2
+client = tweepy.Client(bearer_token=TWITTER_BEARER_TOKEN)
+
+def get_user_id(username):
+    response = client.get_user(username=username)
+    if response.data:
+        print(f"User ID for @{username}: {response.data.id}")
+    else:
+        print("User not found.")
+
+# Replace with your bot's username (without the @)
+get_user_id("optic_agent")
