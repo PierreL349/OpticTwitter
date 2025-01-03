@@ -6,7 +6,10 @@ import requests
 from io import BytesIO
 from dotenv import load_dotenv
 import os
-import time  # Added for sleeping between loops
+import time
+import threading
+import http.server
+import socketserver
 
 # Load .env file
 load_dotenv()
@@ -20,16 +23,11 @@ MOONDREAM_API_KEYS = [
 moondream_keys_cycle = cycle(MOONDREAM_API_KEYS)
 
 def get_valid_moondream_model():
-    """
-    Rotate through the Moondream API keys and return a valid model instance.
-    Retries until a valid key is found.
-    """
     while True:
         new_key = next(moondream_keys_cycle)
         print(f"Trying Moondream API key: {new_key}")
         model = md.vl(api_key=new_key)
         try:
-            # A lightweight test query (adjust as needed)
             model.query("test", "valid")
             return model
         except Exception as e:
@@ -63,8 +61,6 @@ def download_image(url):
 def process_mention(mention, includes):
     try:
         print(f"Processing Tweet ID: {mention.id}")
-
-        # Fetch author username from includes
         author_username = None
         if includes and "users" in includes:
             author_id = mention.author_id
@@ -75,13 +71,6 @@ def process_mention(mention, includes):
             if user_data:
                 author_username = user_data["username"]
 
-        # Debug author username
-        if author_username:
-            print(f"Author Username: {author_username}")
-        else:
-            print(f"Unable to fetch username for author_id: {mention.author_id}")
-
-        # Media processing logic
         if "attachments" in mention and "media_keys" in mention["attachments"]:
             media_keys = mention["attachments"]["media_keys"]
             media = next(
@@ -95,19 +84,14 @@ def process_mention(mention, includes):
                     image = download_image(media_url)
                     if image:
                         query = mention["text"].replace(BOT_HANDLE, "").strip()
-                        # Get a valid Moondream model
                         model = get_valid_moondream_model()
                         try:
                             answer = model.query(image, query)["answer"]
                             print(f"Generated Answer: {answer}")
-
-                            # Construct reply text with author username
                             if author_username:
                                 reply_text = f"@{author_username} Answer: {answer}"
                             else:
-                                reply_text = f"Answer: {answer}"  # Fallback if username is unavailable
-
-                            # Post the reply
+                                reply_text = f"Answer: {answer}"
                             response = client.create_tweet(
                                 text=reply_text,
                                 in_reply_to_tweet_id=mention["id"]
@@ -115,12 +99,6 @@ def process_mention(mention, includes):
                             print(f"Reply posted: {response}")
                         except Exception as e:
                             print(f"Error querying Moondream API: {e}")
-                    else:
-                        print(f"Failed to download image for mention: {mention.id}")
-                else:
-                    print(f"No valid media URL for mention: {mention.id}")
-            else:
-                print(f"No photo attachment found for mention: {mention.id}")
     except Exception as e:
         print(f"Error processing mention ID {mention.id}: {e}")
 
@@ -137,7 +115,7 @@ def set_last_seen_id(last_seen_id, file_name="last_seen_id.txt"):
 
 def run_bot():
     print("Bot started. Checking for mentions...")
-    while True:  # Infinite loop to keep the bot running
+    while True:
         try:
             last_seen_id = get_last_seen_id()
             response = client.get_users_mentions(
@@ -156,10 +134,19 @@ def run_bot():
                 print("No new mentions found.")
         except Exception as e:
             print(f"Error fetching mentions: {e}")
-        
-        # Sleep to avoid hitting API rate limits
-        print("Sleeping for 5 seconds before checking for mentions again...")
-        time.sleep(5)  # Adjust the sleep time as necessary
+        print("Sleeping for 30 seconds before checking again...")
+        time.sleep(30)
+
+def start_dummy_server():
+    port = int(os.getenv("PORT", 8000))
+    handler = http.server.SimpleHTTPRequestHandler
+    with socketserver.TCPServer(("", port), handler) as httpd:
+        print(f"Dummy server running on port {port}...")
+        httpd.serve_forever()
+
+# Start the dummy server in a separate thread
+dummy_server_thread = threading.Thread(target=start_dummy_server, daemon=True)
+dummy_server_thread.start()
 
 if __name__ == "__main__":
     run_bot()
