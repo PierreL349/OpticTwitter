@@ -7,9 +7,6 @@ from io import BytesIO
 from dotenv import load_dotenv
 import os
 import time
-import threading
-import http.server
-import socketserver
 
 # Load .env file
 load_dotenv()
@@ -132,13 +129,11 @@ def run_bot():
                 set_last_seen_id(newest_id)
             else:
                 print("No new mentions found.")
-            # Sleep for a safe duration to avoid hitting the rate limit
             print("Sleeping for 60 seconds before checking for mentions again...")
-            time.sleep(60)  # Adjust as needed
+            time.sleep(60)
         except tweepy.TooManyRequests as e:
-            # Handle rate limits (Twitter-specific)
-            print(f"Rate limit hit. Waiting for reset: {e.response.headers['x-rate-limit-reset']}")
-            reset_time = int(e.response.headers.get("x-rate-limit-reset", 0))
+            print(f"Rate limit hit. Sleeping until reset...")
+            reset_time = int(e.response.headers.get("x-rate-limit-reset", time.time()))
             wait_time = reset_time - int(time.time())
             if wait_time > 0:
                 print(f"Sleeping for {wait_time} seconds to comply with rate limits...")
@@ -146,18 +141,7 @@ def run_bot():
         except Exception as e:
             print(f"Error fetching mentions: {e}")
             print("Sleeping for 30 seconds before retrying...")
-            time.sleep(30)  # Sleep before retrying on error
-
-def start_dummy_server():
-    port = int(os.getenv("PORT", 8000))
-    handler = http.server.SimpleHTTPRequestHandler
-    with socketserver.TCPServer(("", port), handler) as httpd:
-        print(f"Dummy server running on port {port}...")
-        httpd.serve_forever()
-
-# Start the dummy server in a separate thread
-dummy_server_thread = threading.Thread(target=start_dummy_server, daemon=True)
-dummy_server_thread.start()
+            time.sleep(30)
 
 if __name__ == "__main__":
     run_bot()
