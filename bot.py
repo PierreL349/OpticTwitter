@@ -6,6 +6,7 @@ import requests
 from io import BytesIO
 from dotenv import load_dotenv
 import os
+import time  # Added for sleeping between loops
 
 # Load .env file
 load_dotenv()
@@ -27,7 +28,6 @@ def get_valid_moondream_model():
         new_key = next(moondream_keys_cycle)
         print(f"Trying Moondream API key: {new_key}")
         model = md.vl(api_key=new_key)
-        # Test the model to ensure the key is valid
         try:
             # A lightweight test query (adjust as needed)
             model.query("test", "valid")
@@ -123,7 +123,7 @@ def process_mention(mention, includes):
                 print(f"No photo attachment found for mention: {mention.id}")
     except Exception as e:
         print(f"Error processing mention ID {mention.id}: {e}")
-        
+
 def get_last_seen_id(file_name="last_seen_id.txt"):
     try:
         with open(file_name, "r") as f:
@@ -137,22 +137,29 @@ def set_last_seen_id(last_seen_id, file_name="last_seen_id.txt"):
 
 def run_bot():
     print("Bot started. Checking for mentions...")
-    try:
-        last_seen_id = get_last_seen_id()
-        response = client.get_users_mentions(
-            id=BOT_USER_ID,
-            expansions="attachments.media_keys",
-            media_fields="url,type",
-            max_results=10,
-            since_id=last_seen_id
-        )
-        if response.data:
-            for mention in response.data:
-                process_mention(mention, response.includes)
-            newest_id = response.meta["newest_id"]
-            set_last_seen_id(newest_id)
-    except Exception as e:
-        print(f"Error fetching mentions: {e}")
+    while True:  # Infinite loop to keep the bot running
+        try:
+            last_seen_id = get_last_seen_id()
+            response = client.get_users_mentions(
+                id=BOT_USER_ID,
+                expansions="attachments.media_keys",
+                media_fields="url,type",
+                max_results=10,
+                since_id=last_seen_id
+            )
+            if response.data:
+                for mention in response.data:
+                    process_mention(mention, response.includes)
+                newest_id = response.meta["newest_id"]
+                set_last_seen_id(newest_id)
+            else:
+                print("No new mentions found.")
+        except Exception as e:
+            print(f"Error fetching mentions: {e}")
+        
+        # Sleep to avoid hitting API rate limits
+        print("Sleeping for 5 seconds before checking for mentions again...")
+        time.sleep(5)  # Adjust the sleep time as necessary
 
 if __name__ == "__main__":
     run_bot()
